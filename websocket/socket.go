@@ -37,9 +37,10 @@ type SocketHub struct {
 }
 
 type connection struct {
-	hub *SocketHub
-	mu  sync.Mutex
-	c   *websocket.Conn
+	hub   *SocketHub
+	uname string
+	mu    sync.Mutex
+	c     *websocket.Conn
 }
 
 // run runs in its own goroutine
@@ -91,9 +92,10 @@ func (hub *SocketHub) UpgradeServe(w http.ResponseWriter, r *http.Request) error
 	}
 	log.Printf("[appended] connection <%s:%v> added to connections\n", uname, &conn)
 	connection := &connection{
-		hub: hub,
-		mu:  sync.Mutex{},
-		c:   conn,
+		hub:   hub,
+		uname: uname,
+		mu:    sync.Mutex{},
+		c:     conn,
 	}
 	hub.conns[uname] = connection
 	// let connection listen
@@ -131,12 +133,17 @@ func NewHub() *SocketHub {
 
 // connRead runs in its own goroutine
 func connRead(conn *connection) {
-
+	defer func() {
+		conn.hub.Remove <- conn.uname
+	}()
 	for {
 		_, msg, err := conn.c.ReadMessage()
 		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("[error] connRead/UnexcpectedCloseError: %v", err.Error())
+			}
 			log.Printf("[error] conn.c.ReadMessage(): %v", err.Error())
-			continue
+			break
 		}
 		conn.hub.Broadcast <- map[string]interface{}{
 			"conn": conn,
@@ -167,6 +174,7 @@ func connSend(conn *connection, msg []byte) error {
 func connClose(conn *connection) error {
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
+
 	if err := conn.c.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
 		return err
 	}
