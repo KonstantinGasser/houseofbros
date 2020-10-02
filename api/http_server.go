@@ -1,6 +1,12 @@
 package api
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+
+	// init routes from package routes
+	_ "github.com/KonstantinGasser/houseofbros/api/routes"
+)
 
 // HttpServer some docs
 type HttpServer struct {
@@ -15,6 +21,7 @@ func NewHTTPServer(addr string) *HttpServer {
 
 // Serve spins up the server
 func (server *HttpServer) Serve() error {
+	log.Printf("[created] new Server started on %s\n", server.addr)
 	if err := http.ListenAndServe(server.addr, nil); err != nil {
 		return err
 	}
