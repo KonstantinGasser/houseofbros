@@ -1,12 +1,15 @@
 package websocket
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/KonstantinGasser/houseofbros/status"
 	"github.com/gorilla/websocket"
 )
 
@@ -28,19 +31,19 @@ var (
 // SocketHub knows all the connected users and updates them
 // if either changes its status
 type SocketHub struct {
-	Join      chan map[string]interface{}
-	Remove    chan string
-	Broadcast chan map[string]interface{}
+	Join    chan *connection
+	Remove  chan string
+	Brocast chan map[string]interface{}
 	// mutex for following
-	mu    sync.Mutex
-	conns map[string]*connection
+	mu   sync.Mutex
+	bros map[string]*connection
 }
 
 type connection struct {
-	hub   *SocketHub
-	uname string
-	mu    sync.Mutex
-	c     *websocket.Conn
+	hub *SocketHub
+	mu  sync.Mutex
+	c   *websocket.Conn
+	bro *status.Bro
 }
 
 // run runs in its own goroutine
@@ -52,22 +55,58 @@ func (hub *SocketHub) run() {
 		select {
 		case c := <-hub.Join: //add new connection to hub
 			hub.mu.Lock()
-			if _, ok := hub.conns[c["uname"].(string)]; !ok {
-				hub.conns[c["uname"].(string)] = c["conn"].(*connection)
+			if _, ok := hub.bros[c.bro.Uname]; !ok {
+				hub.bros[c.bro.Uname] = c
 			}
 			hub.mu.Unlock()
-			log.Printf("[appended] connection <%s:%v> added to connections", c["uname"], c["conn"])
+			log.Printf("[appended] connection <%s> added to connections\n", c.bro.Uname)
+
+			for _, bro := range hub.bros { // update: new bro incoming
+				if bro.bro.Uname == c.bro.Uname {
+					continue
+				}
+
+				data := map[string]interface{}{
+					"uname":    c.bro.Uname,    //bro.bro.Uname,
+					"activity": c.bro.Activity, //bro.bro.Activity,
+					"comment":  c.bro.Comment,  //bro.bro.Comment,
+					"emotion":  c.bro.Emotion,  //bro.bro.Emotion,
+				}
+				b, err := json.Marshal(data)
+				if err != nil {
+					log.Printf("[error] json.Marshal(data): %v", err.Error())
+					continue
+				}
+				if err := connSend(bro, b); err != nil {
+					continue
+				}
+			}
 		case uname := <-hub.Remove: // delete connection from hub
 			hub.mu.Lock()
-			delete(hub.conns, uname)
+			delete(hub.bros, uname)
 			hub.mu.Unlock()
 			log.Printf("[removed] user <%s> removed from connections", uname)
-		case update := <-hub.Broadcast: // broadcast status update
-			log.Println(update)
-
-			connSend(update["conn"].(*connection), update["msg"].([]byte))
+		case bro := <-hub.Brocast: // broadcast status update
+			for _, br := range hub.bros {
+				fmt.Println(br.bro.Uname)
+				_bro := hub.bros[bro["uname"].(string)].bro.UpdateBro(
+					bro["activity"].(string),
+					bro["comment"].(string),
+					bro["emotion"].([]interface{}),
+				)
+				b, err := json.Marshal(map[string]interface{}{
+					"uname":    _bro.Uname,
+					"activity": _bro.Activity,
+					"comment":  _bro.Comment,
+					"emotion":  _bro.Emotion,
+				})
+				if err != nil {
+					continue
+				}
+				connSend(br, b)
+			}
 		case <-ticker.C:
-			log.Print("[status] SocketHub - running\n")
+			log.Printf("[status] SocketHub - running: current connections: %d\n", len(hub.bros))
 		}
 	}
 
@@ -86,26 +125,25 @@ func (hub *SocketHub) UpgradeServe(w http.ResponseWriter, r *http.Request) error
 
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
-	if _, ok := hub.conns[uname]; ok {
+	if _, ok := hub.bros[uname]; ok {
 		log.Printf("[error] uname: %s already exists", uname)
 		return fmt.Errorf("`{'error': 'username-existis-exception'}`")
 	}
-	log.Printf("[appended] connection <%s:%v> added to connections\n", uname, &conn)
+
 	connection := &connection{
-		hub:   hub,
-		uname: uname,
-		mu:    sync.Mutex{},
-		c:     conn,
+		hub: hub,
+		mu:  sync.Mutex{},
+		c:   conn,
+		bro: status.NewBro(uname),
 	}
-	hub.conns[uname] = connection
-	// let connection listen
-	go connRead(connection)
+	hub.bros[uname] = connection
 
 	// send ACK to connection
-	if err := connSend(connection, []byte("Hello Bro")); err != nil {
-		log.Printf("[error] sending ack to connection: %v", &connection.c)
-		return err
-	}
+	hub.Join <- connection
+
+	// allBros, err := hub.decodeFullMap()
+	// log.Printf("ALL BROS: %v", string(allBros))
+	// connSend(connection, allBros)
 	return nil
 }
 
@@ -114,16 +152,24 @@ func parseURL(r *http.Request) (uname string) {
 	return uname
 }
 
+// BroYouThere checks if there is a connection for a bro
+func (hub *SocketHub) BroYouThere(uname string) bool {
+	if _, ok := hub.bros[uname]; ok {
+		return true
+	}
+	return false
+}
+
 // NewHub creates a new SocketHub and starts the run method
 // returns a pointer to the SocketHub
 func NewHub() *SocketHub {
 	log.Print("[created] new SocketHub\n")
 	socket := SocketHub{
-		Join:      make(chan map[string]interface{}),
-		Remove:    make(chan string),
-		Broadcast: make(chan map[string]interface{}),
-		mu:        sync.Mutex{},
-		conns:     make(map[string]*connection),
+		Join:    make(chan *connection),
+		Remove:  make(chan string),
+		Brocast: make(chan map[string]interface{}),
+		mu:      sync.Mutex{},
+		bros:    make(map[string]*connection),
 	}
 
 	// spin-up goroutine
@@ -131,39 +177,25 @@ func NewHub() *SocketHub {
 	return &socket
 }
 
-// connRead runs in its own goroutine
-func connRead(conn *connection) {
-	defer func() {
-		conn.hub.Remove <- conn.uname
-	}()
-	for {
-		_, msg, err := conn.c.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("[error] connRead/UnexcpectedCloseError: %v", err.Error())
-			}
-			log.Printf("[error] conn.c.ReadMessage(): %v", err.Error())
-			break
-		}
-		conn.hub.Broadcast <- map[string]interface{}{
-			"conn": conn,
-			"msg":  msg,
-		}
-	}
-}
-
-// writes
 func connSend(conn *connection, msg []byte) error {
-
+	log.Printf("SEND: %s\n", string(msg))
+	var w io.WriteCloser
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 	w, err := conn.c.NextWriter(websocket.TextMessage)
 	if err != nil {
+		// clean-up
 		log.Printf("[error] conn.c.NextWriter(...) unable to create NextWriter: %v", err.Error())
+		conn.hub.Remove <- conn.bro.Uname
+		connClose(conn)
 		return err
 	}
+	defer w.Close()
 	if _, err := w.Write(msg); err != nil {
+		// clean-up
 		log.Printf("[error] w.Write(msg) unable to send message to connection <%v> :%v", &conn.c, err.Error())
+		conn.hub.Remove <- conn.bro.Uname
+		connClose(conn)
 		return err
 	}
 	log.Printf("[send] message send to <%v>", &conn.c)
@@ -179,4 +211,22 @@ func connClose(conn *connection) error {
 		return err
 	}
 	return nil
+}
+
+func (hub *SocketHub) DecodeFullMap() ([]byte, error) {
+	var payload = make(map[string]interface{})
+	for _, bro := range hub.bros {
+		payload[bro.bro.Uname] = map[string]interface{}{
+			"uname":    bro.bro.Uname,
+			"activity": bro.bro.Activity,
+			"comment":  bro.bro.Comment,
+			"emotion":  bro.bro.Emotion,
+		}
+	}
+
+	_data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return _data, nil
 }

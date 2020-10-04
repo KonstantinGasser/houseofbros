@@ -1,17 +1,30 @@
 package status
 
-// UserStates holds information about the connected Users
-type UserStates map[string]User
+import "log"
 
-// User holds information about the users status
-type User struct {
-	Username string
-	Status   Status
+// Bro is something you cannot touch
+type Bro struct {
+	Uname    string        `json:"uname"`
+	Activity string        `json:"activity"`
+	Comment  string        `json:"comment"`
+	Emotion  []interface{} `json:"emotion"`
 }
 
-// Status defines the status a user can set
-type Status struct {
-	Action   string
-	Comments string
-	Emotion  string
+// UpdateBro changes the state of a bro
+func (bro *Bro) UpdateBro(activity, comment string, emotion []interface{}) *Bro {
+	bro.Activity = activity
+	bro.Comment = comment
+	bro.Emotion = emotion
+	log.Printf("[updated] bromotion")
+	return bro
+}
+
+// NewBro welcome to the club
+func NewBro(uname string) *Bro {
+	return &Bro{
+		Uname:    uname,
+		Activity: "Being Awesome",
+		Comment:  "this could be your ad",
+		Emotion:  []interface{}{0},
+	}
 }
