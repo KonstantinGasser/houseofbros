@@ -62,10 +62,6 @@ func (hub *SocketHub) run() {
 			log.Printf("[appended] connection <%s> added to connections\n", c.bro.Uname)
 
 			for _, bro := range hub.bros { // update: new bro incoming
-				if bro.bro.Uname == c.bro.Uname {
-					continue
-				}
-
 				data := map[string]interface{}{
 					"uname":    c.bro.Uname,    //bro.bro.Uname,
 					"activity": c.bro.Activity, //bro.bro.Activity,
@@ -103,7 +99,10 @@ func (hub *SocketHub) run() {
 				if err != nil {
 					continue
 				}
-				connSend(br, b)
+				if err := connSend(br, b); err != nil {
+					hub.Remove <- br.bro.Uname
+					continue
+				}
 			}
 		case <-ticker.C:
 			log.Printf("[status] SocketHub - running: current connections: %d\n", len(hub.bros))
@@ -138,12 +137,7 @@ func (hub *SocketHub) UpgradeServe(w http.ResponseWriter, r *http.Request) error
 	}
 	hub.bros[uname] = connection
 
-	// send ACK to connection
 	hub.Join <- connection
-
-	// allBros, err := hub.decodeFullMap()
-	// log.Printf("ALL BROS: %v", string(allBros))
-	// connSend(connection, allBros)
 	return nil
 }
 
@@ -200,6 +194,12 @@ func connSend(conn *connection, msg []byte) error {
 	}
 	log.Printf("[send] message send to <%v>", &conn.c)
 	return nil
+}
+
+// listenForClose runs as a goroutine for each connection
+// trying to listen for the client - if that fails
+func listenForClose(conn *connection) {
+
 }
 
 // connClose send closure message to client
