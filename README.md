@@ -1,2 +1,2 @@
 
-()[resources/statusbro.gif]
+![](resources/statusbro.gif)
