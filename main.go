@@ -7,10 +7,9 @@ import (
 )
 
 func main() {
-
-	server := api.NewHTTPServer(":8080")
-
-	if err := server.Serve(); err != nil {
+	server := api.NewServer()
+	server.Routes()
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
