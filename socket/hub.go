@@ -26,6 +26,8 @@ var (
 	}
 )
 
+// Hub orchastrates who and how people can connect
+// it knows about all current users and there state
 type Hub struct {
 	Unknown chan *user
 	Known   chan *user
@@ -36,6 +38,9 @@ type Hub struct {
 }
 
 // run runs in its own goroutine
+// select on:
+//	- hub.Known
+//	- hub.Unknown
 func (hub *Hub) run() {
 	ticker := time.NewTicker(tickerTime)
 	defer func() {
@@ -75,6 +80,9 @@ func (hub *Hub) run() {
 	}
 }
 
+// Upgrade upgrades a HTTP-Request to an Websocket(ws) connection
+// if that is successful it spins up the users checkAlive() in a goroutine &
+// pushes the user to the hub.Known || hub.Unknown chan
 func (hub *Hub) Upgrade(w http.ResponseWriter, r *http.Request, username string) error {
 	log.Printf("[processing] upgrade request: %v", r.URL.Hostname())
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -83,6 +91,7 @@ func (hub *Hub) Upgrade(w http.ResponseWriter, r *http.Request, username string)
 		return err
 	}
 
+	// check if users has a user instance
 	_user, ok := hub.pool[username]
 	if ok {
 		hub.mu.Lock()
@@ -96,7 +105,7 @@ func (hub *Hub) Upgrade(w http.ResponseWriter, r *http.Request, username string)
 		return nil
 	}
 
-	user := &user{
+	user := &user{ // create new if !above
 		mu:       sync.Mutex{},
 		hub:      hub,
 		conn:     conn,
@@ -110,6 +119,9 @@ func (hub *Hub) Upgrade(w http.ResponseWriter, r *http.Request, username string)
 	return nil
 }
 
+// UpdateUser takes the uname for mapping the new action, note and emojies
+// calls the update function from the user. Serializes the user and pushes it
+// to the hub.stream
 func (hub *Hub) UpdateUser(uname, action, note string, emo []interface{}) error {
 
 	user, ok := hub.pool[uname]
@@ -123,6 +135,7 @@ func (hub *Hub) UpdateUser(uname, action, note string, emo []interface{}) error 
 	return nil
 }
 
+// Reacte appends aa users user.state.reaction []interface with a given number
 func (hub *Hub) Reacte(reciever string, emojiType interface{}) error {
 	user, ok := hub.pool[reciever]
 	if !ok {
@@ -149,6 +162,7 @@ func (hub *Hub) stream(msg []byte) {
 	}
 }
 
+// NewHub creates and returns a pointer the a new socket.Hub instance
 func NewHub() *Hub {
 	log.Println("[created] new SocketHub")
 	hub := &Hub{

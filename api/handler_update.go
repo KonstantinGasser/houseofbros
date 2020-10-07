@@ -5,6 +5,8 @@ import (
 	"net/http"
 )
 
+// HandelUpdate forwards the request to socket.hub.Update
+// to update a user profile and state
 func (s *Server) HandelUpdate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[called] route: %v", r.URL.Path)
@@ -23,6 +25,7 @@ func (s *Server) HandelUpdate() http.HandlerFunc {
 	}
 }
 
+// HandelReaction forwards the request to socket.hub.Reacte to update reactions from other user
 func (s *Server) HandelReaction() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[called] route: %v", r.URL.Path)

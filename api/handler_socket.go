@@ -5,7 +5,8 @@ import (
 	"net/http"
 )
 
-// HandleSocketConnection some docs
+// HandleSocketConnection forwards http request to upgrade func from
+// socket.hub.Upgrade()
 func (s *Server) HandleSocketConnection() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[called] route: %v", r.URL.Path)
