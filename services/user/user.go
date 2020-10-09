@@ -2,10 +2,6 @@ package user
 
 import "encoding/json"
 
-type User interface {
-	Serialize() ([]byte, error)
-}
-
 type StdUser struct {
 	Username  string        `json:"username"`
 	Action    string        `json:"action"`

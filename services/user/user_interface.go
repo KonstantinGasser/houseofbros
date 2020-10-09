@@ -11,6 +11,7 @@ type UserStorage interface {
 	Create(w http.ResponseWriter, r *http.Request, v map[string]interface{}) error
 	Update(v map[string]interface{}) error
 	Delete(v map[string]interface{}) error
+	UUID() (string, error)
 	Serialize() ([]byte, error)
 }
 

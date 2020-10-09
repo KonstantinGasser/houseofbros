@@ -7,10 +7,11 @@ import (
 )
 
 type CardStorage interface {
-	Serialize() ([]byte, error)
 	Create()
 	Update()
 	Delete()
+	UUID()
+	Serialize() ([]byte, error)
 }
 
 func NewCardHub(mainHub *socket.MainHub) CardStorage {
