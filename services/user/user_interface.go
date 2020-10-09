@@ -1,6 +1,7 @@
 package user
 
 import (
+	"log"
 	"net/http"
 	"sync"
 
@@ -8,17 +9,21 @@ import (
 )
 
 type UserStorage interface {
-	Create(w http.ResponseWriter, r *http.Request, v map[string]interface{}) error
-	Update(v map[string]interface{}) error
+	Create(w http.ResponseWriter, r *http.Request) error
+	// Get(uname string) ([]byte, error)
+	// GetAll() ([]btye, error)
+	UpdateStatus(v map[string]interface{}) error
+	AddReaction(v map[string]interface{})
 	Delete(v map[string]interface{}) error
 	UUID() (string, error)
 	Serialize() ([]byte, error)
 }
 
 func NewUserHub(mainHub *socket.MainHub) UserStorage {
+	log.Printf("[created] new UserStorage\n")
 	return &UserHub{
 		mainHub: mainHub,
 		mu:      sync.Mutex{},
-		users:   make(map[string]User),
+		Users:   make(map[string]*User),
 	}
 }

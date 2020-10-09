@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/KonstantinGasser/houseofbros/services/card"
@@ -20,7 +21,9 @@ type Server struct {
 }
 
 func NewServer() *Server {
+	log.Printf("[created] new API-Server\n")
 	mainHub := socket.NewMainHub()
+	go mainHub.Run()
 	return &Server{
 		mainHub: mainHub,
 		userHub: user.NewUserHub(mainHub),
@@ -34,12 +37,11 @@ func (s *Server) Run() error {
 
 func (s *Server) SetUp() {
 	// routes
-}
+	log.Printf("[set-up] route: /api/v1/ws\n")
+	s.router.HandleFunc("/api/v1/ws", s.HandlerProtcollUpgrade())
 
-type APIRouter struct{}
-
-func (router *APIRouter) HandleFunc(path string, handlerFunc func(w http.ResponseWriter, r *http.Request)) {
-	http.HandleFunc(path, handlerFunc)
+	log.Printf("[set-up] route: /api/v1/user/update\n")
+	s.router.HandleFunc("/api/v1/user/update", s.HandlerUpdateStatus())
 }
 
 func decode(body io.ReadCloser) (map[string]interface{}, error) {
@@ -47,9 +49,11 @@ func decode(body io.ReadCloser) (map[string]interface{}, error) {
 	var data map[string]interface{}
 	b, err := ioutil.ReadAll(body)
 	if err != nil {
+		log.Printf("[error] decode(): %s\n", err.Error())
 		return nil, err
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
+		log.Printf("[error] decode(): %s\n", err.Error())
 		return nil, err
 	}
 	return data, nil
