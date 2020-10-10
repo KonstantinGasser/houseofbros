@@ -24,12 +24,11 @@ type UserHub struct {
 	Users   map[string]*User `json:"users"`
 }
 
-func (hub *UserHub) Create(w http.ResponseWriter, r *http.Request) error {
+func (hub *UserHub) Create(w http.ResponseWriter, r *http.Request, uname string) ([]byte, error) {
 
-	uname := r.URL.Query().Get("uname")
 	conn, err := hub.mainHub.Upgrade(w, r, uname)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_reqUser, ok := hub.Users[uname]
@@ -38,6 +37,7 @@ func (hub *UserHub) Create(w http.ResponseWriter, r *http.Request) error {
 			Username:  uname,
 			Action:    "Beaking the desk",
 			Note:      "How much is the fish?",
+			IsOnline:  true,
 			Emojies:   []interface{}{0},
 			Reactions: []interface{}{},
 		}
@@ -45,12 +45,12 @@ func (hub *UserHub) Create(w http.ResponseWriter, r *http.Request) error {
 		hub.Users[uname] = _reqUser
 		hub.mu.Unlock()
 	}
-
-	go _reqUser.ping(hub.mainHub.Remove, conn, uname)
+	_reqUser.IsOnline = true
+	go _reqUser.ping(hub.mainHub.Broadcast, hub.mainHub.Remove, conn, uname)
 
 	log.Printf("[created] User <%s>\n", uname)
-
-	return nil
+	b, _ := _reqUser.Serialize()
+	return b, nil
 
 }
 
@@ -71,7 +71,14 @@ func (hub *UserHub) UpdateStatus(v map[string]interface{}) error {
 	return nil
 }
 
-func (hub *UserHub) AddReaction(v map[string]interface{}) {
+func (hub *UserHub) AddReaction(v map[string]interface{}) error {
+	user, ok := hub.Users[v["to-user"].(string)]
+	if !ok {
+		return fmt.Errorf("`{'status': 404, 'messasge': 'user_not_found'}`")
+	}
+	user.AddReaction(v["reaction"])
+	log.Printf("[added] reaction from:%v - to:%v\n", v["from-user"], v["to-user"])
+	return nil
 }
 
 func (hub *UserHub) Delete(v map[string]interface{}) error {

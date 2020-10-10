@@ -36,12 +36,22 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) SetUp() {
-	// routes
+	// routes: user
 	log.Printf("[set-up] route: /api/v1/ws\n")
 	s.router.HandleFunc("/api/v1/ws", s.HandlerProtcollUpgrade())
 
+	log.Printf("[set-up] route: /api/v1/user/all\n")
+	s.router.HandleFunc("/api/v1/user/all", s.HandlerUserAll())
+
 	log.Printf("[set-up] route: /api/v1/user/update\n")
 	s.router.HandleFunc("/api/v1/user/update", s.HandlerUpdateStatus())
+
+	log.Printf("[set-up] route: /api/v1/user/reaction\n")
+	s.router.HandleFunc("/api/v1/user/reaction", s.HandlerUpdateReaction())
+
+	// route: card
+	log.Printf("[set-up] route: /api/v1/card/all\n")
+	s.router.HandleFunc("/api/v1/card/all", s.HandlerCardAll())
 }
 
 func decode(body io.ReadCloser) (map[string]interface{}, error) {

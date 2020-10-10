@@ -45,6 +45,7 @@ func (hub *MainHub) Run() {
 			// do something here
 			b, _ := msg.Serialize()
 			stream(b, hub.conns)
+			log.Printf("[stream-broadcasted] Event: %T\n", msg)
 		case <-hub.Singlecast:
 			// do something here
 		case uname := <-hub.Remove:

@@ -9,11 +9,9 @@ import (
 )
 
 type UserStorage interface {
-	Create(w http.ResponseWriter, r *http.Request) error
-	// Get(uname string) ([]byte, error)
-	// GetAll() ([]btye, error)
+	Create(w http.ResponseWriter, r *http.Request, uname string) ([]byte, error)
 	UpdateStatus(v map[string]interface{}) error
-	AddReaction(v map[string]interface{})
+	AddReaction(v map[string]interface{}) error
 	Delete(v map[string]interface{}) error
 	UUID() (string, error)
 	Serialize() ([]byte, error)

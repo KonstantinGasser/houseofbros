@@ -6,6 +6,7 @@ import (
 )
 
 type Task struct {
+	UUID     string    `json:"uuid"`
 	Title    string    `json:"title"`
 	Author   string    `json:"author"`
 	Assigned string    `json:"assigned"`

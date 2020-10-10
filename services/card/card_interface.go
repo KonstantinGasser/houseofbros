@@ -8,10 +8,10 @@ import (
 )
 
 type CardStorage interface {
-	Create()
-	Update()
+	Create(v map[string]interface{})
+	Update(uuid string) ([]byte, error)
 	Delete()
-	UUID() (string, error)
+	GenerateUUID() (string, error)
 	Serialize() ([]byte, error)
 }
 
@@ -20,6 +20,6 @@ func NewCardHub(mainHub *socket.MainHub) CardStorage {
 	return &CardHub{
 		mainHub: mainHub,
 		mu:      sync.Mutex{},
-		Cards:   make(map[string]*Card),
+		Cards:   make(map[string]Card),
 	}
 }

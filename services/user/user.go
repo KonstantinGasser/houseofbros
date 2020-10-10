@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/KonstantinGasser/houseofbros/socket"
 	"github.com/gorilla/websocket"
 )
 
@@ -23,12 +24,21 @@ func (u *User) Update(action, note string, emojies []interface{}) {
 	u.Emojies = emojies
 }
 
+func (u *User) AddReaction(v interface{}) {
+	u.Reactions = append(u.Reactions, v)
+}
+
 // runs in its own goroutine
-func (user *User) ping(remove chan string, conn *websocket.Conn, uname string) {
+func (user *User) ping(broadcast chan socket.Event, remove chan string, conn *websocket.Conn, uname string) {
 	log.Printf("[started] ping to client <%s> goroutine\n", uname)
 	defer func() {
 		user.IsOnline = false
 		conn.Close()
+		b, _ := user.Serialize()
+		broadcast <- socket.EventUser{
+			Type: "user-changed",
+			User: b,
+		}
 		remove <- uname
 	}()
 

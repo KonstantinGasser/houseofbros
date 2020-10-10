@@ -21,7 +21,8 @@ func (evt EventUser) Serialize() ([]byte, error) {
 
 type EventReaction struct {
 	Type     string      `json:"event"`
-	Username string      `json:"username"`
+	From     string      `json:"from-user"`
+	To       string      `json:"to-user"`
 	Reaction interface{} `json:"reaction"`
 }
 
